@@ -63,11 +63,9 @@ export default function DrawingCanvas() {
           ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
       };
   };
-  
-  // Wait... I just checked my own correction and I almost did it again.
-  // Let me give you the CLEANEST version of getCoordinates to be safe.
-  
-   const getCoordinatesClean = (event) => {
+
+  // ==================== COORDINATE HELPER ====================
+   const getCoordinates = (event) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
 
     if (event.touches && event.touches.length > 0) {
@@ -91,10 +89,10 @@ export default function DrawingCanvas() {
   // ==================== DRAWING LOGIC ====================
   const startDrawing = (event) => {
     if (event.type === 'touchstart') {
-       // Optional: logic to handle start of touch
+       // Optional logic
     }
 
-    const { x, y } = getCoordinatesClean(event);
+    const { x, y } = getCoordinates(event);
     contextRef.current.beginPath();
     contextRef.current.moveTo(x, y);
     isDrawing.current = true;
@@ -108,7 +106,7 @@ export default function DrawingCanvas() {
   const draw = (event) => {
     if (!isDrawing.current) return;
     
-    const { x, y } = getCoordinatesClean(event);
+    const { x, y } = getCoordinates(event);
     contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
   };
@@ -137,41 +135,46 @@ export default function DrawingCanvas() {
   return (
     <div className="relative w-full h-screen bg-gray-50 overflow-hidden font-sans">
       
-      {/* HEADER */}
+      {/* HEADER: Adjusted text size for mobile */}
       <div className="absolute top-6 left-8 pointer-events-none select-none z-10">
-        <h1 className="text-3xl font-extrabold text-gray-800 tracking-tight">
+        <h1 className="text-xl md:text-3xl font-extrabold text-gray-800 tracking-tight">
           Cosmic<span className="text-indigo-600">Canvas</span>
         </h1>
-        <p className="text-sm text-gray-500 mt-1">Unleash your inner artist</p>
+        <p className="text-xs md:text-sm text-gray-500 mt-1">Unleash your inner artist</p>
       </div>
 
-      {/* TOOLBAR */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 
+      {/* TOOLBAR: THE BIG FIX */}
+      <div className="absolute bottom-4 md:bottom-8 left-1/2 transform -translate-x-1/2 
+                      w-[95%] md:w-auto max-w-lg md:max-w-none
                       bg-white/90 backdrop-blur-md border border-gray-200 
-                      shadow-2xl rounded-2xl px-8 py-4 flex items-center gap-8 z-20">
+                      shadow-2xl rounded-2xl 
+                      px-4 py-3 md:px-8 md:py-4 
+                      flex justify-between md:justify-start items-center 
+                      gap-2 md:gap-8 z-20">
         
         {/* Color Picker */}
-        <div className="flex flex-col items-center gap-2">
-           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Color</label>
+        <div className="flex flex-col items-center gap-1 md:gap-2">
+           <label className="text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider">Color</label>
            <div className="relative group">
              <input 
                type="color" 
                value={color}
                onChange={(e) => setColor(e.target.value)}
-               className="absolute inset-0 opacity-0 w-10 h-10 cursor-pointer z-10"
+               className="absolute inset-0 opacity-0 w-8 h-8 md:w-10 md:h-10 cursor-pointer z-10"
              />
              <div 
-               className="w-10 h-10 rounded-full border-2 border-white shadow-sm ring-2 ring-gray-100 transition-transform group-hover:scale-110"
+               className="w-8 h-8 md:w-10 md:h-10 rounded-fullnD border-2 border-white shadow-sm ring-2 ring-gray-100 transition-transform group-hover:scale-110"
                style={{ backgroundColor: color }}
              />
            </div>
         </div>
 
-        <div className="w-px h-10 bg-gray-200"></div>
+        {/* Separator: Hidden on mobile */}
+        <div className="hidden md:block w-px h-10 bg-gray-200"></div>
 
-        {/* Brush Size */}
-        <div className="flex flex-col items-center gap-2 min-w-[120px]">
-           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+        {/* Brush Size: Flexible width on mobile */}
+        <div className="flex flex-col items-center gap-1 md:gap-2 flex-grow md:flex-grow-0 md:min-w-[120px]">
+           <label className="text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider">
              Size: {lineWidth}px
            </label>
            <input 
@@ -184,32 +187,33 @@ export default function DrawingCanvas() {
            />
         </div>
 
-        <div className="w-px h-10 bg-gray-200"></div>
+        {/* Separator: Hidden on mobile */}
+        <div className="hidden md:block w-px h-10 bg-gray-200"></div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3">
+        {/* Action Buttons: Tighter padding on mobile */}
+        <div className="flex items-center gap-1 md:gap-3">
            <button 
             onClick={loadTestTemplate}
-            className="p-3 text-gray-500 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
+            className="p-2 md:p-3 text-gray-500 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
             title="Load Template"
           >
-            <ImageIcon size={20} />
+            <ImageIcon size={18} className="md:w-5 md:h-5" />
           </button>
 
           <button 
             onClick={clearCanvas}
-            className="p-3 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+            className="p-2 md:p-3 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
             title="Clear Canvas"
           >
-            <RefreshCw size={20} />
+            <RefreshCw size={18} className="md:w-5 md:h-5" />
           </button>
           
           <button 
             onClick={downloadImage}
-            className="p-3 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 hover:shadow-indigo-200 transition-all transform hover:-translate-y-1"
+            className="p-2 md:p-3 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 hover:shadow-indigo-200 transition-all transform hover:-translate-y-1"
             title="Save Image"
           >
-            <Download size={20} />
+            <Download size={18} className="md:w-5 md:h-5" />
           </button>
         </div>
       </div>
