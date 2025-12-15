@@ -133,7 +133,7 @@ export default function DrawingCanvas() {
   };
 
   return (
-    <div className="relative w-full h-screen bg-gray-50 overflow-hidden font-sans">
+    <div className="relative w-full h-[100dvh] bg-gray-50 overflow-hidden font-sans">
       
       {/* HEADER: Adjusted text size for mobile */}
       <div className="absolute top-6 left-8 pointer-events-none select-none z-10">
@@ -144,13 +144,13 @@ export default function DrawingCanvas() {
       </div>
 
       {/* TOOLBAR: THE BIG FIX */}
-      <div className="absolute bottom-4 md:bottom-8 left-1/2 transform -translate-x-1/2 
-                      w-[95%] md:w-auto max-w-lg md:max-w-none
-                      bg-white/90 backdrop-blur-md border border-gray-200 
-                      shadow-2xl rounded-2xl 
-                      px-4 py-3 md:px-8 md:py-4 
-                      flex justify-between md:justify-start items-center 
-                      gap-2 md:gap-8 z-20">
+      <div className="absolute bottom-24 md:bottom-8 left-1/2 transform -translate-x-1/2 
+                w-[95%] md:w-auto max-w-lg md:max-w-none
+                bg-white/90 backdrop-blur-md border border-gray-200 
+                shadow-2xl rounded-2xl 
+                px-4 py-3 md:px-8 md:py-4 
+                flex justify-between md:justify-start items-center 
+                gap-2 md:gap-8 z-20">
         
         {/* Color Picker */}
         <div className="flex flex-col items-center gap-1 md:gap-2">
