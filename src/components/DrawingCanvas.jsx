@@ -1,8 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Download, Eraser, RefreshCw } from 'lucide-react'; // Make sure to install lucide-react or remove icons if you prefer text
-
-// If you don't have lucide-react, run: npm install lucide-react
-// Or just swap the icons in the JSX for text like "Save", "Clear", etc.
+import { Download, RefreshCw, Image as ImageIcon } from 'lucide-react'; 
 
 export default function DrawingCanvas() {
   // ==================== REFS & STATE ====================
@@ -12,8 +9,9 @@ export default function DrawingCanvas() {
 
   const [color, setColor] = useState("#000000");
   const [lineWidth, setLineWidth] = useState(5);
+  const [currentTemplate, setCurrentTemplate] = useState(null);
 
-  // ==================== SETUP (Same as before) ====================
+  // ==================== INITIAL SETUP ====================
   useEffect(() => {
     const canvas = canvasRef.current;
     
@@ -26,7 +24,7 @@ export default function DrawingCanvas() {
     const context = canvas.getContext("2d");
     context.scale(2, 2);
     context.lineCap = "round";
-    context.lineJoin = "round"; // Smoother corners
+    context.lineJoin = "round";
     context.strokeStyle = color;
     context.lineWidth = lineWidth;
     
@@ -41,11 +39,64 @@ export default function DrawingCanvas() {
     }
   }, [color, lineWidth]);
 
+  useEffect(() => {
+    if (currentTemplate && contextRef.current) {
+        loadImageToCanvas(currentTemplate);
+    }
+  }, [currentTemplate]);
+
+  const loadImageToCanvas = (url) => {
+      const canvas = canvasRef.current;
+      const ctx = contextRef.current;
+      
+      const img = new Image();
+      img.src = url;
+      img.crossOrigin = "Anonymous"; 
+      img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          // Draw image to fit (centered and scaled)
+          const scale = Math.min(canvas.width / img.width, canvas.height / img.height) * 0.4; 
+          const x = (canvas.width / 4) - (img.width * scale / 2); 
+          const y = (canvas.height / 4) - (img.height * scale / 2);
+          
+          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+      };
+  };
+  
+  // Wait... I just checked my own correction and I almost did it again.
+  // Let me give you the CLEANEST version of getCoordinates to be safe.
+  
+   const getCoordinatesClean = (event) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+
+    if (event.touches && event.touches.length > 0) {
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const touch = event.touches[0];
+      
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      };
+    } 
+    
+    return {
+      x: event.nativeEvent.offsetX,
+      y: event.nativeEvent.offsetY
+    };
+  };
+
+
   // ==================== DRAWING LOGIC ====================
-  const startDrawing = ({ nativeEvent }) => {
-    const { offsetX, offsetY } = nativeEvent;
+  const startDrawing = (event) => {
+    if (event.type === 'touchstart') {
+       // Optional: logic to handle start of touch
+    }
+
+    const { x, y } = getCoordinatesClean(event);
     contextRef.current.beginPath();
-    contextRef.current.moveTo(offsetX, offsetY);
+    contextRef.current.moveTo(x, y);
     isDrawing.current = true;
   };
 
@@ -54,34 +105,39 @@ export default function DrawingCanvas() {
     isDrawing.current = false;
   };
 
-  const draw = ({ nativeEvent }) => {
+  const draw = (event) => {
     if (!isDrawing.current) return;
-    const { offsetX, offsetY } = nativeEvent;
-    contextRef.current.lineTo(offsetX, offsetY);
+    
+    const { x, y } = getCoordinatesClean(event);
+    contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
   };
 
-  // ==================== NEW FEATURES ====================
+  // ==================== ACTIONS ====================
   
-  // CLEAR CANVAS
   const clearCanvas = () => {
      const canvas = canvasRef.current;
      contextRef.current.clearRect(0, 0, canvas.width, canvas.height);
+     if (currentTemplate) {
+         loadImageToCanvas(currentTemplate);
+     }
   };
 
-  // SAVE IMAGE (The Bonus useRef Trick!)
   const downloadImage = () => {
-    // 1. Access the DOM node directly to get the data URL (base64 string of the image)
     const link = document.createElement('a');
     link.download = `cosmic-masterpiece-${Date.now()}.png`;
     link.href = canvasRef.current.toDataURL();
     link.click();
   };
 
+  const loadTestTemplate = () => {
+      setCurrentTemplate("https://placehold.co/600x400/png?text=Ball+Zachary+Cloots");
+  };
+
   return (
     <div className="relative w-full h-screen bg-gray-50 overflow-hidden font-sans">
       
-      {/* 1. ELEGANT HEADER */}
+      {/* HEADER */}
       <div className="absolute top-6 left-8 pointer-events-none select-none z-10">
         <h1 className="text-3xl font-extrabold text-gray-800 tracking-tight">
           Cosmic<span className="text-indigo-600">Canvas</span>
@@ -89,16 +145,15 @@ export default function DrawingCanvas() {
         <p className="text-sm text-gray-500 mt-1">Unleash your inner artist</p>
       </div>
 
-      {/* 2. THE FLOATING DOCK TOOLBAR */}
+      {/* TOOLBAR */}
       <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 
                       bg-white/90 backdrop-blur-md border border-gray-200 
                       shadow-2xl rounded-2xl px-8 py-4 flex items-center gap-8 z-20">
         
-        {/* Color Picker Group */}
+        {/* Color Picker */}
         <div className="flex flex-col items-center gap-2">
            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Color</label>
            <div className="relative group">
-             {/* We hide the ugly input but keep it clickable over the pretty div */}
              <input 
                type="color" 
                value={color}
@@ -112,10 +167,9 @@ export default function DrawingCanvas() {
            </div>
         </div>
 
-        {/* Separator */}
         <div className="w-px h-10 bg-gray-200"></div>
 
-        {/* Brush Size Group */}
+        {/* Brush Size */}
         <div className="flex flex-col items-center gap-2 min-w-[120px]">
            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
              Size: {lineWidth}px
@@ -130,14 +184,21 @@ export default function DrawingCanvas() {
            />
         </div>
 
-        {/* Separator */}
         <div className="w-px h-10 bg-gray-200"></div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
+           <button 
+            onClick={loadTestTemplate}
+            className="p-3 text-gray-500 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
+            title="Load Template"
+          >
+            <ImageIcon size={20} />
+          </button>
+
           <button 
             onClick={clearCanvas}
-            className="p-3 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all tooltip-trigger"
+            className="p-3 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
             title="Clear Canvas"
           >
             <RefreshCw size={20} />
@@ -153,13 +214,16 @@ export default function DrawingCanvas() {
         </div>
       </div>
 
-      {/* 3. THE CANVAS */}
+      {/* CANVAS */}
       <canvas
         ref={canvasRef}
         onMouseDown={startDrawing}
         onMouseUp={finishDrawing}
         onMouseMove={draw}
         onMouseLeave={finishDrawing}
+        onTouchStart={startDrawing}
+        onTouchEnd={finishDrawing}
+        onTouchMove={draw}
         className="cursor-crosshair w-full h-full touch-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-repeat"
       />
     </div>
