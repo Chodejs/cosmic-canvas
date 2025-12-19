@@ -1,25 +1,18 @@
 import { useRef, useEffect, useState } from 'react';
-import { Download, RefreshCw, Type, X, Palette } from 'lucide-react';
+import { Download, RefreshCw, X, Palette } from 'lucide-react';
 
 export default function DrawingCanvas() {
   // ==================== STATE ====================
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
-  const inputRef = useRef(null);
   const isDrawing = useRef(false);
 
-  // Tools: 'brush' or 'text'
-  const [tool, setTool] = useState('brush');
-  
   // Appearance
   const [color, setColor] = useState("#ffffff");
   const [lineWidth, setLineWidth] = useState(5);
   
   // Background State
   const [background, setBackground] = useState({ type: 'color', value: '#1a1a2e' });
-
-  // Text Input State
-  const [textInput, setTextInput] = useState(null);
 
   // ==================== INITIAL SETUP ====================
   useEffect(() => {
@@ -37,7 +30,6 @@ export default function DrawingCanvas() {
         context.lineJoin = "round";
         context.strokeStyle = color;
         context.lineWidth = lineWidth;
-        context.font = "24px sans-serif";
         contextRef.current = context;
     }
 
@@ -52,15 +44,8 @@ export default function DrawingCanvas() {
       contextRef.current.strokeStyle = color;
       contextRef.current.lineWidth = lineWidth;
       contextRef.current.fillStyle = color;
-      contextRef.current.font = `${12 + (lineWidth * 3)}px sans-serif`;
     }
   }, [color, lineWidth]);
-
-  useEffect(() => {
-    if (textInput && inputRef.current) {
-        inputRef.current.focus();
-    }
-  }, [textInput]);
 
   // ==================== DRAWING LOGIC ====================
   const getCoordinates = (event) => {
@@ -83,12 +68,6 @@ export default function DrawingCanvas() {
   };
 
   const startInteraction = (event) => {
-    if (tool === 'text') {
-        event.preventDefault();
-        const { x, y } = getCoordinates(event);
-        setTextInput({ x, y });
-        return;
-    }
     const { x, y } = getCoordinates(event);
     contextRef.current.beginPath();
     contextRef.current.moveTo(x, y);
@@ -96,39 +75,15 @@ export default function DrawingCanvas() {
   };
 
   const endInteraction = () => {
-    if (tool === 'brush') {
-        contextRef.current.closePath();
-        isDrawing.current = false;
-    }
+    contextRef.current.closePath();
+    isDrawing.current = false;
   };
 
   const draw = (event) => {
-    if (!isDrawing.current || tool !== 'brush') return;
+    if (!isDrawing.current) return;
     const { x, y } = getCoordinates(event);
     contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
-  };
-
-  // ==================== TEXT LOGIC ====================
-  const finishText = (text, shouldSwitchToBrush = false) => {
-      if (text && contextRef.current && textInput) {
-          contextRef.current.fillText(text, textInput.x, textInput.y + 10);
-      }
-      setTextInput(null);
-      if (shouldSwitchToBrush) {
-        setTool('brush');
-      }
-  };
-
-  const handleTextSubmit = (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          finishText(e.target.value, true);
-      }
-  };
-
-  const handleBlur = (e) => {
-      finishText(e.target.value, false); 
   };
 
   // ==================== ACTIONS ====================
@@ -152,11 +107,15 @@ export default function DrawingCanvas() {
     tempCanvas.height = canvas.height;
     const ctx = tempCanvas.getContext('2d');
 
+    // 1. Draw Background
     if (background.type === 'color') {
         ctx.fillStyle = background.value;
         ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
     } 
+    // Note: Local images won't export in this version without CORS/Loading handling, 
+    // so this mainly exports the drawing + solid colors.
     
+    // 2. Draw Canvas
     ctx.drawImage(canvas, 0, 0);
 
     const link = document.createElement('a');
@@ -190,26 +149,8 @@ export default function DrawingCanvas() {
         onTouchStart={startInteraction}
         onTouchEnd={endInteraction}
         onTouchMove={draw}
-        className={`absolute inset-0 z-10 w-full h-full touch-none ${tool === 'text' ? 'cursor-text' : 'cursor-crosshair'}`}
+        className="absolute inset-0 z-10 w-full h-full touch-none cursor-crosshair"
       />
-
-      {/* TEXT INPUT */}
-      {textInput && (
-          <input
-            ref={inputRef}
-            className="absolute z-20 bg-transparent border-b border-white text-white outline-none p-0 m-0 font-sans"
-            style={{ 
-                left: textInput.x, 
-                top: textInput.y, 
-                color: color,
-                width: '300px',
-                fontSize: `${12 + (lineWidth * 3)}px`
-            }}
-            onKeyDown={handleTextSubmit}
-            onBlur={handleBlur}
-            placeholder="Type..."
-          />
-      )}
 
       {/* LOGO */}
       <div className="absolute top-6 left-8 pointer-events-none z-30">
@@ -219,7 +160,6 @@ export default function DrawingCanvas() {
       </div>
 
       {/* CONTROLS */}
-      {/* UPDATE 1: Wider container on mobile (w-95%), smaller padding (px-4 py-3) */}
       <div className="absolute bottom-6 md:bottom-8 left-1/2 transform -translate-x-1/2 
                 w-[96%] md:w-auto
                 bg-gray-900/90 backdrop-blur-md border border-gray-700 
@@ -227,18 +167,15 @@ export default function DrawingCanvas() {
                 px-4 py-3 md:px-6 md:py-4 z-30 flex flex-col gap-3 md:gap-4">
 
         {/* Top Row: Tools */}
-        {/* UPDATE 2: Reduced gap from 6 to 2 on mobile */}
         <div className="flex justify-between items-center gap-2 md:gap-6">
             
             {/* Color & Size Group */}
             <div className="flex items-center gap-2 md:gap-4">
-                {/* Slightly smaller color picker on mobile */}
                 <input 
                     type="color" value={color} onChange={(e) => setColor(e.target.value)}
                     className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-white cursor-pointer bg-transparent"
                 />
                 
-                {/* Smaller width for slider container on mobile (w-20 vs w-24) */}
                 <div className="flex flex-col w-20 md:w-24">
                     <span className="text-[10px] text-gray-400 font-bold uppercase">Size</span>
                     <input 
@@ -249,23 +186,12 @@ export default function DrawingCanvas() {
                 </div>
             </div>
 
-            {/* Tool Toggles */}
-            <div className="flex gap-1 md:gap-2 bg-gray-800 p-1 rounded-lg">
-                <button 
-                    onClick={() => setTool('brush')}
-                    className={`p-1.5 md:p-2 rounded-md transition ${tool === 'brush' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
-                >
-                    <Palette size={18} className="md:w-5 md:h-5" />
-                </button>
-                <button 
-                    onClick={() => setTool('text')}
-                    className={`p-1.5 md:p-2 rounded-md transition ${tool === 'text' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
-                >
-                    <Type size={18} className="md:w-5 md:h-5" />
-                </button>
+            {/* Brush Indicator (Visual Only now) */}
+            <div className="bg-gray-800 p-1.5 rounded-lg">
+               <Palette size={18} className="text-indigo-400 md:w-5 md:h-5" />
             </div>
 
-            {/* Action Buttons (Clear/Download) */}
+            {/* Action Buttons */}
             <div className="flex gap-1 md:gap-2 border-l border-gray-700 pl-2 md:pl-4">
                  <button onClick={clearCanvas} className="p-1.5 md:p-2 text-gray-400 hover:text-red-400 transition">
                     <RefreshCw size={18} className="md:w-5 md:h-5" />
@@ -277,7 +203,6 @@ export default function DrawingCanvas() {
         </div>
 
         {/* Bottom Row: Templates & Colors */}
-        {/* Minimal changes needed here since it scrolls, just ensuring gap is consistent */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
             <span className="text-xs text-gray-500 whitespace-nowrap mr-1 md:mr-2">Backdrop:</span>
             
