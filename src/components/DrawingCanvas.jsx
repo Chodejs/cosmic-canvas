@@ -305,13 +305,13 @@ export default function DrawingCanvas() {
                 onClick={() => setTemplateImage("red-holiday.jpg")}
                 className="px-3 py-1 bg-red-900/80 text-xs text-red-100 rounded-full border border-red-500 hover:bg-red-800 shrink-0"
             >
-                🎅 Santa
+                🎅 Red
             </button>
              <button 
                 onClick={() => setTemplateImage("green-holiday.jpg")}
                 className="px-3 py-1 bg-green-900/80 text-xs text-green-100 rounded-full border border-green-500 hover:bg-green-800 shrink-0"
             >
-                🎄 Tree
+                🎄 Green
             </button>
         </div>
       </div>
