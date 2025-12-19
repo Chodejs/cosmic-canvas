@@ -1,34 +1,49 @@
 import { useRef, useEffect, useState } from 'react';
-import { Download, RefreshCw, Image as ImageIcon } from 'lucide-react'; 
+import { Download, RefreshCw, Type, X, Palette } from 'lucide-react';
 
 export default function DrawingCanvas() {
-  // ==================== REFS & STATE ====================
+  // ==================== STATE ====================
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
+  const inputRef = useRef(null);
   const isDrawing = useRef(false);
 
-  const [color, setColor] = useState("#000000");
+  // Tools: 'brush' or 'text'
+  const [tool, setTool] = useState('brush');
+  
+  // Appearance
+  const [color, setColor] = useState("#ffffff");
   const [lineWidth, setLineWidth] = useState(5);
-  const [currentTemplate, setCurrentTemplate] = useState(null);
+  
+  // Background State
+  const [background, setBackground] = useState({ type: 'color', value: '#1a1a2e' });
+
+  // Text Input State
+  const [textInput, setTextInput] = useState(null);
 
   // ==================== INITIAL SETUP ====================
   useEffect(() => {
     const canvas = canvasRef.current;
     
-    // High-DPI support
-    canvas.width = window.innerWidth * 2;
-    canvas.height = window.innerHeight * 2;
-    canvas.style.width = `${window.innerWidth}px`;
-    canvas.style.height = `${window.innerHeight}px`;
+    const updateSize = () => {
+        canvas.width = window.innerWidth * 2;
+        canvas.height = window.innerHeight * 2;
+        canvas.style.width = `${window.innerWidth}px`;
+        canvas.style.height = `${window.innerHeight}px`;
 
-    const context = canvas.getContext("2d");
-    context.scale(2, 2);
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.strokeStyle = color;
-    context.lineWidth = lineWidth;
-    
-    contextRef.current = context;
+        const context = canvas.getContext("2d");
+        context.scale(2, 2);
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.strokeStyle = color;
+        context.lineWidth = lineWidth;
+        context.font = "24px sans-serif";
+        contextRef.current = context;
+    }
+
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
   }, []);
 
   // ==================== UPDATES ====================
@@ -36,200 +51,270 @@ export default function DrawingCanvas() {
     if (contextRef.current) {
       contextRef.current.strokeStyle = color;
       contextRef.current.lineWidth = lineWidth;
+      contextRef.current.fillStyle = color;
+      contextRef.current.font = `${12 + (lineWidth * 3)}px sans-serif`;
     }
   }, [color, lineWidth]);
 
   useEffect(() => {
-    if (currentTemplate && contextRef.current) {
-        loadImageToCanvas(currentTemplate);
+    if (textInput && inputRef.current) {
+        inputRef.current.focus();
     }
-  }, [currentTemplate]);
+  }, [textInput]);
 
-  const loadImageToCanvas = (url) => {
-      const canvas = canvasRef.current;
-      const ctx = contextRef.current;
-      
-      const img = new Image();
-      img.src = url;
-      img.crossOrigin = "Anonymous"; 
-      img.onload = () => {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          
-          // Draw image to fit (centered and scaled)
-          const scale = Math.min(canvas.width / img.width, canvas.height / img.height) * 0.4; 
-          const x = (canvas.width / 4) - (img.width * scale / 2); 
-          const y = (canvas.height / 4) - (img.height * scale / 2);
-          
-          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-      };
-  };
-
-  // ==================== COORDINATE HELPER ====================
-   const getCoordinates = (event) => {
+  // ==================== DRAWING LOGIC ====================
+  const getCoordinates = (event) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
-
-    if (event.touches && event.touches.length > 0) {
-      const canvas = canvasRef.current;
-      const rect = canvas.getBoundingClientRect();
-      const touch = event.touches[0];
-      
-      return {
-        x: touch.clientX - rect.left,
-        y: touch.clientY - rect.top
-      };
-    } 
+    const rect = canvasRef.current.getBoundingClientRect();
     
+    let clientX, clientY;
+    if (event.touches && event.touches.length > 0) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+
     return {
-      x: event.nativeEvent.offsetX,
-      y: event.nativeEvent.offsetY
+      x: clientX - rect.left,
+      y: clientY - rect.top
     };
   };
 
-
-  // ==================== DRAWING LOGIC ====================
-  const startDrawing = (event) => {
-    if (event.type === 'touchstart') {
-       // Optional logic
+  const startInteraction = (event) => {
+    if (tool === 'text') {
+        event.preventDefault();
+        const { x, y } = getCoordinates(event);
+        setTextInput({ x, y });
+        return;
     }
-
     const { x, y } = getCoordinates(event);
     contextRef.current.beginPath();
     contextRef.current.moveTo(x, y);
     isDrawing.current = true;
   };
 
-  const finishDrawing = () => {
-    contextRef.current.closePath();
-    isDrawing.current = false;
+  const endInteraction = () => {
+    if (tool === 'brush') {
+        contextRef.current.closePath();
+        isDrawing.current = false;
+    }
   };
 
   const draw = (event) => {
-    if (!isDrawing.current) return;
-    
+    if (!isDrawing.current || tool !== 'brush') return;
     const { x, y } = getCoordinates(event);
     contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
   };
 
+  // ==================== TEXT LOGIC ====================
+  const finishText = (text, shouldSwitchToBrush = false) => {
+      if (text && contextRef.current && textInput) {
+          contextRef.current.fillText(text, textInput.x, textInput.y + 10);
+      }
+      setTextInput(null);
+      if (shouldSwitchToBrush) {
+        setTool('brush');
+      }
+  };
+
+  const handleTextSubmit = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          finishText(e.target.value, true);
+      }
+  };
+
+  const handleBlur = (e) => {
+      finishText(e.target.value, false); 
+  };
+
   // ==================== ACTIONS ====================
-  
   const clearCanvas = () => {
      const canvas = canvasRef.current;
      contextRef.current.clearRect(0, 0, canvas.width, canvas.height);
-     if (currentTemplate) {
-         loadImageToCanvas(currentTemplate);
-     }
+  };
+
+  const removeTemplate = () => {
+      setBackground({ type: 'color', value: '#1a1a2e' });
+  };
+
+  const setTemplateImage = (filename) => {
+      setBackground({ type: 'image', value: `/templates/${filename}` });
   };
 
   const downloadImage = () => {
+    const canvas = canvasRef.current;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const ctx = tempCanvas.getContext('2d');
+
+    if (background.type === 'color') {
+        ctx.fillStyle = background.value;
+        ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    } 
+    
+    ctx.drawImage(canvas, 0, 0);
+
     const link = document.createElement('a');
-    link.download = `cosmic-masterpiece-${Date.now()}.png`;
-    link.href = canvasRef.current.toDataURL();
+    link.download = `fetch-a-sketch-${Date.now()}.png`;
+    link.href = tempCanvas.toDataURL();
     link.click();
   };
 
-  const loadTestTemplate = () => {
-      setCurrentTemplate("https://placehold.co/600x400/png?text=Ball+Zachary+Cloots");
-  };
-
   return (
-    <div className="relative w-full h-[100dvh] bg-gray-50 overflow-hidden font-sans">
+    <div className="relative w-full h-[100dvh] overflow-hidden font-sans select-none">
       
-      {/* HEADER: Adjusted text size for mobile */}
-      <div className="absolute top-6 left-8 pointer-events-none select-none z-10">
-        <h1 className="text-xl md:text-3xl font-extrabold text-gray-800 tracking-tight">
-          Cosmic<span className="text-indigo-600">Canvas</span>
-        </h1>
-        <p className="text-xs md:text-sm text-gray-500 mt-1">Unleash your inner artist</p>
-      </div>
+      {/* BACKGROUND LAYER */}
+      <div 
+        className="absolute inset-0 z-0 transition-all duration-500"
+        style={{
+            backgroundColor: background.type === 'color' ? background.value : '#000',
+            backgroundImage: background.type === 'image' ? `url(${background.value})` : 'none',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
+        }}
+      />
 
-      {/* TOOLBAR: THE BIG FIX */}
-      <div className="absolute bottom-24 md:bottom-8 left-1/2 transform -translate-x-1/2 
-                w-[95%] md:w-auto max-w-lg md:max-w-none
-                bg-white/90 backdrop-blur-md border border-gray-200 
-                shadow-2xl rounded-2xl 
-                px-4 py-3 md:px-8 md:py-4 
-                flex justify-between md:justify-start items-center 
-                gap-2 md:gap-8 z-20">
-        
-        {/* Color Picker */}
-        <div className="flex flex-col items-center gap-1 md:gap-2">
-           <label className="text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider">Color</label>
-           <div className="relative group">
-             <input 
-               type="color" 
-               value={color}
-               onChange={(e) => setColor(e.target.value)}
-               className="absolute inset-0 opacity-0 w-8 h-8 md:w-10 md:h-10 cursor-pointer z-10"
-             />
-             <div 
-               className="w-8 h-8 md:w-10 md:h-10 rounded-fullnD border-2 border-white shadow-sm ring-2 ring-gray-100 transition-transform group-hover:scale-110"
-               style={{ backgroundColor: color }}
-             />
-           </div>
-        </div>
-
-        {/* Separator: Hidden on mobile */}
-        <div className="hidden md:block w-px h-10 bg-gray-200"></div>
-
-        {/* Brush Size: Flexible width on mobile */}
-        <div className="flex flex-col items-center gap-1 md:gap-2 flex-grow md:flex-grow-0 md:min-w-[120px]">
-           <label className="text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-             Size: {lineWidth}px
-           </label>
-           <input 
-             type="range" 
-             min="1" 
-             max="50" 
-             value={lineWidth} 
-             onChange={(e) => setLineWidth(Number(e.target.value))}
-             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-           />
-        </div>
-
-        {/* Separator: Hidden on mobile */}
-        <div className="hidden md:block w-px h-10 bg-gray-200"></div>
-
-        {/* Action Buttons: Tighter padding on mobile */}
-        <div className="flex items-center gap-1 md:gap-3">
-           <button 
-            onClick={loadTestTemplate}
-            className="p-2 md:p-3 text-gray-500 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
-            title="Load Template"
-          >
-            <ImageIcon size={18} className="md:w-5 md:h-5" />
-          </button>
-
-          <button 
-            onClick={clearCanvas}
-            className="p-2 md:p-3 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-            title="Clear Canvas"
-          >
-            <RefreshCw size={18} className="md:w-5 md:h-5" />
-          </button>
-          
-          <button 
-            onClick={downloadImage}
-            className="p-2 md:p-3 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 hover:shadow-indigo-200 transition-all transform hover:-translate-y-1"
-            title="Save Image"
-          >
-            <Download size={18} className="md:w-5 md:h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* CANVAS */}
+      {/* DRAWING LAYER */}
       <canvas
         ref={canvasRef}
-        onMouseDown={startDrawing}
-        onMouseUp={finishDrawing}
+        onMouseDown={startInteraction}
+        onMouseUp={endInteraction}
         onMouseMove={draw}
-        onMouseLeave={finishDrawing}
-        onTouchStart={startDrawing}
-        onTouchEnd={finishDrawing}
+        onMouseLeave={endInteraction}
+        onTouchStart={startInteraction}
+        onTouchEnd={endInteraction}
         onTouchMove={draw}
-        className="cursor-crosshair w-full h-full touch-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-repeat"
+        className={`absolute inset-0 z-10 w-full h-full touch-none ${tool === 'text' ? 'cursor-text' : 'cursor-crosshair'}`}
       />
+
+      {/* TEXT INPUT */}
+      {textInput && (
+          <input
+            ref={inputRef}
+            className="absolute z-20 bg-transparent border-b border-white text-white outline-none p-0 m-0 font-sans"
+            style={{ 
+                left: textInput.x, 
+                top: textInput.y, 
+                color: color,
+                width: '300px',
+                fontSize: `${12 + (lineWidth * 3)}px`
+            }}
+            onKeyDown={handleTextSubmit}
+            onBlur={handleBlur}
+            placeholder="Type..."
+          />
+      )}
+
+      {/* LOGO */}
+      <div className="absolute top-6 left-8 pointer-events-none z-30">
+        <h1 className="text-xl md:text-3xl font-extrabold text-white tracking-tight drop-shadow-md">
+          Fetch a <span className="text-indigo-400">Sketch</span>
+        </h1>
+      </div>
+
+      {/* CONTROLS */}
+      {/* UPDATE 1: Wider container on mobile (w-95%), smaller padding (px-4 py-3) */}
+      <div className="absolute bottom-6 md:bottom-8 left-1/2 transform -translate-x-1/2 
+                w-[96%] md:w-auto
+                bg-gray-900/90 backdrop-blur-md border border-gray-700 
+                shadow-2xl rounded-2xl 
+                px-4 py-3 md:px-6 md:py-4 z-30 flex flex-col gap-3 md:gap-4">
+
+        {/* Top Row: Tools */}
+        {/* UPDATE 2: Reduced gap from 6 to 2 on mobile */}
+        <div className="flex justify-between items-center gap-2 md:gap-6">
+            
+            {/* Color & Size Group */}
+            <div className="flex items-center gap-2 md:gap-4">
+                {/* Slightly smaller color picker on mobile */}
+                <input 
+                    type="color" value={color} onChange={(e) => setColor(e.target.value)}
+                    className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-white cursor-pointer bg-transparent"
+                />
+                
+                {/* Smaller width for slider container on mobile (w-20 vs w-24) */}
+                <div className="flex flex-col w-20 md:w-24">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Size</span>
+                    <input 
+                        type="range" min="1" max="20" value={lineWidth} 
+                        onChange={(e) => setLineWidth(Number(e.target.value))}
+                        className="h-2 bg-gray-700 rounded-lg appearance-none accent-indigo-500"
+                    />
+                </div>
+            </div>
+
+            {/* Tool Toggles */}
+            <div className="flex gap-1 md:gap-2 bg-gray-800 p-1 rounded-lg">
+                <button 
+                    onClick={() => setTool('brush')}
+                    className={`p-1.5 md:p-2 rounded-md transition ${tool === 'brush' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                    <Palette size={18} className="md:w-5 md:h-5" />
+                </button>
+                <button 
+                    onClick={() => setTool('text')}
+                    className={`p-1.5 md:p-2 rounded-md transition ${tool === 'text' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                    <Type size={18} className="md:w-5 md:h-5" />
+                </button>
+            </div>
+
+            {/* Action Buttons (Clear/Download) */}
+            <div className="flex gap-1 md:gap-2 border-l border-gray-700 pl-2 md:pl-4">
+                 <button onClick={clearCanvas} className="p-1.5 md:p-2 text-gray-400 hover:text-red-400 transition">
+                    <RefreshCw size={18} className="md:w-5 md:h-5" />
+                 </button>
+                 <button onClick={downloadImage} className="p-1.5 md:p-2 text-gray-400 hover:text-indigo-400 transition">
+                    <Download size={18} className="md:w-5 md:h-5" />
+                 </button>
+            </div>
+        </div>
+
+        {/* Bottom Row: Templates & Colors */}
+        {/* Minimal changes needed here since it scrolls, just ensuring gap is consistent */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <span className="text-xs text-gray-500 whitespace-nowrap mr-1 md:mr-2">Backdrop:</span>
+            
+            {background.value !== '#1a1a2e' && (
+                <button 
+                    onClick={removeTemplate}
+                    className="flex items-center gap-1 px-3 py-1 bg-red-900/50 text-red-200 text-xs rounded-full border border-red-800 hover:bg-red-900 shrink-0"
+                >
+                    <X size={12} /> Reset
+                </button>
+            )}
+
+            {/* Colors */}
+            {['#1a1a2e', '#ffffff', '#000000', '#16213e', '#4a1c40'].map(c => (
+                <button 
+                    key={c}
+                    onClick={() => setBackground({ type: 'color', value: c })}
+                    className="w-6 h-6 rounded-full border border-gray-600 focus:ring-2 ring-indigo-500 shrink-0"
+                    style={{ backgroundColor: c }}
+                />
+            ))}
+
+            {/* HOLIDAY TEMPLATES */}
+            <button 
+                onClick={() => setTemplateImage("red-holiday.jpg")}
+                className="px-3 py-1 bg-red-900/80 text-xs text-red-100 rounded-full border border-red-500 hover:bg-red-800 shrink-0"
+            >
+                🎅 Santa
+            </button>
+             <button 
+                onClick={() => setTemplateImage("green-holiday.jpg")}
+                className="px-3 py-1 bg-green-900/80 text-xs text-green-100 rounded-full border border-green-500 hover:bg-green-800 shrink-0"
+            >
+                🎄 Tree
+            </button>
+        </div>
+      </div>
     </div>
   );
 }
